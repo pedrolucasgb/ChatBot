@@ -1,9 +1,13 @@
 import os
-from langchain.llms import OpenAI
+from langchain_community.llms import OpenAI
 from langchain.chains import LLMChain
 from langchain.prompts import PromptTemplate
-from langchain.vectorstores import FAISS
-from langchain.embeddings import OpenAIEmbeddings
+from langchain_community.vectorstores import FAISS
+from langchain_community.embeddings import OpenAIEmbeddings
+from dotenv import load_dotenv
+from sqlalchemy import create_engine  # <-- Adicionado import
+
+load_dotenv()
 
 # Pai: Leitor de perguntas do usuário
 class QuestionReader:
@@ -19,8 +23,8 @@ class DynamicResponder(QuestionReader):
         super().__init__()
         self.db_path = db_path
         self.engine = engine  # SQLAlchemy engine, se fornecido
-        self.llm = OpenAI(temperature=0)
-        self.embeddings = OpenAIEmbeddings()
+        self.llm = OpenAI(temperature=0, openai_api_key=os.getenv("OPENAI_API_KEY"))
+        self.embeddings = OpenAIEmbeddings(openai_api_key=os.getenv("OPENAI_API_KEY"))
         self.vectorstore = None
 
         if db_path:
@@ -70,15 +74,20 @@ class DynamicResponder(QuestionReader):
         chain = create_sql_query_chain(ChatOpenAI(temperature=0), db)
         return chain.invoke({"question": question})
 
+def create_sqlalchemy_engine(db_path):
+    """Cria uma engine SQLAlchemy para um arquivo .db local"""
+    return create_engine(f"sqlite:///{db_path}")
+
 def main():
-    db_path = "faiss_db"  # Altere conforme necessário
-    # engine = create_engine("sqlite:///seu_banco.db")  # Exemplo se for usar SQL
-    responder = DynamicResponder(db_path=db_path)  # , engine=engine)
+    db_path = "airlines_flights_data.db"  # Altere conforme necessário
+    engine = create_sqlalchemy_engine(db_path)  # Função criada para engine
+    responder = DynamicResponder(db_path=db_path, engine=engine)
     
-    question = responder.read_question()
-    answer = responder.interpret_and_respond(question)
-    
-    print("Resposta:", answer)
+    while True:
+        question = responder.read_question()
+        answer = responder.interpret_and_respond(question)
+        
+        print("Resposta:", answer)
 
 if __name__ == "__main__":
     main()
